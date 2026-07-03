@@ -35,11 +35,11 @@ jobs:
 
       # 4. Instala las dependencias del proyecto (claude-agent-sdk, yfinance...)
       - name: Instalar dependencias
-        run: pip install -r investment_agent/requirements.txt
+        run: pip install -r requirements.txt
 
       # 5. Ejecuta el agente. La API key sale de los "Secrets" del repo, nunca queda escrita en el codigo
       - name: Ejecutar el agente
-        run: python investment_agent/agent.py
+        run: python agent.py
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
@@ -49,6 +49,6 @@ jobs:
         run: |
           git config user.name "agente-inversion-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add investment_agent/portfolio_state.json
+          git add portfolio_state.json
           git diff --cached --quiet && echo "Sin cambios que guardar" || git commit -m "Snapshot cartera $(date +%F)"
           git push
