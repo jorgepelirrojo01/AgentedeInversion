@@ -46,6 +46,7 @@ async def main():
     options = ClaudeAgentOptions(
         system_prompt=SYSTEM_PROMPT,
         mcp_servers={"investment": investment_tools_server},
+        model="claude-sonnet-4-6",
         allowed_tools=[
             "mcp__investment__get_price",
             "mcp__investment__get_portfolio",
