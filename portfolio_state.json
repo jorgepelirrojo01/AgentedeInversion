@@ -1,9 +1,63 @@
 {
   "created_at": "2026-07-03",
   "currency": "EUR",
-  "cash": 1000.0,
-  "positions": {},
-  "transactions": [],
+  "cash": 100.0,
+  "positions": {
+    "VWCE.DE": {
+      "shares": 2.411381650745572,
+      "avg_price": 165.8800048828125
+    },
+    "AGGH.L": {
+      "shares": 38.361944950609,
+      "avg_price": 5.2135
+    },
+    "SGLD.L": {
+      "shares": 0.4988028837346161,
+      "avg_price": 400.9599914550781
+    },
+    "BTC-EUR": {
+      "shares": 0.001841266566993729,
+      "avg_price": 54310.44140625
+    }
+  },
+  "transactions": [
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "VWCE.DE",
+      "amount_eur": 400.0,
+      "price": 165.8800048828125,
+      "shares": 2.411381650745572,
+      "reason": "Core del portfolio: ETF de renta variable global diversificada (FTSE All-World). Representa el 40% de la cartera, aportando exposición a miles de empresas en países desarrollados y emergentes."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "AGGH.L",
+      "amount_eur": 200.0,
+      "price": 5.2135,
+      "shares": 38.361944950609,
+      "reason": "ETF de bonos globales aggregate (iShares). Actúa como amortiguador de volatilidad: históricamente se mueve de forma inversa a la renta variable en momentos de estrés de mercado. Aporta estabilidad al portfolio (20%)."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "SGLD.L",
+      "amount_eur": 200.0,
+      "price": 400.9599914550781,
+      "shares": 0.4988028837346161,
+      "reason": "ETF de oro físico (Invesco Physical Gold). Actúa como refugio seguro ante incertidumbre macroeconómica e inflación. Descorrelacionado tanto de RV como de bonos. Asignación del 20%."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "BTC-EUR",
+      "amount_eur": 100.0,
+      "price": 54310.44140625,
+      "shares": 0.001841266566993729,
+      "reason": "Pequeña posición especulativa en Bitcoin (10%). Alto potencial de rentabilidad en un horizonte de 6 meses, con riesgo acotado al 10% del portfolio. Aporta descorrelación adicional respecto a activos tradicionales."
+    }
+  ],
   "snapshots": [
     {
       "date": "2026-07-03",
@@ -11,6 +65,34 @@
       "cash": 1000.0,
       "positions": {},
       "note": "Inicio de la simulacion"
+    },
+    {
+      "date": "2026-07-03",
+      "total_value": 1000.0,
+      "cash": 100.0,
+      "positions": {
+        "VWCE.DE": {
+          "shares": 2.411381650745572,
+          "price": 165.8800048828125,
+          "value": 399.99999999999994
+        },
+        "AGGH.L": {
+          "shares": 38.361944950609,
+          "price": 5.2135,
+          "value": 200.00000000000003
+        },
+        "SGLD.L": {
+          "shares": 0.4988028837346161,
+          "price": 400.9599914550781,
+          "value": 200.0
+        },
+        "BTC-EUR": {
+          "shares": 0.001841266566993729,
+          "price": 54310.44140625,
+          "value": 100.0
+        }
+      },
+      "note": "SESIÓN INICIAL (2026-07-03): Construcción de la cartera desde cero con 1.000 EUR. Asignación: 40% VWCE.DE (RV global, 400€), 20% AGGH.L (bonos globales, 200€), 20% SGLD.L (oro físico, 200€), 10% BTC-EUR (cripto, 100€), 10% cash reserva (100€). Estrategia equilibrada y diversificada para un horizonte de 6 meses, priorizando rentabilidad ajustada a riesgo. Próxima revisión: ~1 mes."
     }
   ]
 }
