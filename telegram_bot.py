@@ -139,12 +139,27 @@ def build_message() -> str:
     total, detalle, precios_actuales, state = current_total_value()
 
     rentabilidad_total = pct_change(CAPITAL_INICIAL, total)
-    v24h = historical_portfolio_value(state, 1, precios_actuales)
-    v7d = historical_portfolio_value(state, 7, precios_actuales)
-    v30d = historical_portfolio_value(state, 30, precios_actuales)
+
+    created_at = state.get("created_at")
+    dias_desde_creacion = None
+    if created_at:
+        dias_desde_creacion = (
+            datetime.now(timezone.utc).date() - datetime.strptime(created_at, "%Y-%m-%d").date()
+        ).days
+
+    def valor_hace(dias):
+        # Si la cartera no lleva tanto tiempo abierta, no tiene sentido
+        # comparar contra un periodo en el que ni siquiera existia.
+        if dias_desde_creacion is None or dias_desde_creacion < dias:
+            return None
+        return historical_portfolio_value(state, dias, precios_actuales)
+
+    v24h = valor_hace(1)
+    v7d = valor_hace(7)
+    v30d = valor_hace(30)
 
     def fmt(r):
-        return f"{r:+.2f}%" if r is not None else "sin datos suficientes"
+        return f"{r:+.2f}%" if r is not None else "sin datos suficientes (cartera muy reciente)"
 
     lineas = [f"Cash: {state.get('cash', 0):.2f} EUR"]
     for ticker, valor in detalle:
