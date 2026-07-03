@@ -106,7 +106,7 @@ def get_historical_price(ticker: str, days_ago: int) -> float:
     target = pd.Timestamp(datetime.now(timezone.utc) - timedelta(days=days_ago))
     idx = hist.index
     idx_utc = idx.tz_convert("UTC") if idx.tz is not None else idx.tz_localize("UTC")
-    diffs = abs(idx_utc - target.tz_localize("UTC"))
+    diffs = abs(idx_utc - target)  # target ya es UTC-aware, no hace falta tz_localize otra vez
     closest = diffs.argmin()
     return float(hist["Close"].iloc[closest])
 
