@@ -1,23 +1,23 @@
 {
   "created_at": "2026-07-03",
   "currency": "EUR",
-  "cash": 9100.0,
+  "cash": 2500.0,
   "positions": {
     "VWCE.DE": {
-      "shares": 2.411381650745572,
+      "shares": 27.128043570887687,
       "avg_price": 165.8800048828125
     },
     "AGGH.L": {
-      "shares": 38.361944950609,
+      "shares": 287.71458712956746,
       "avg_price": 5.2135
     },
     "SGLD.L": {
-      "shares": 0.4988028837346161,
+      "shares": 2.4940144186730806,
       "avg_price": 400.9599914550781
     },
     "BTC-EUR": {
-      "shares": 0.001841266566993729,
-      "avg_price": 54310.44140625
+      "shares": 0.009201783160250504,
+      "avg_price": 54337.29433658903
     }
   },
   "transactions": [
@@ -56,6 +56,42 @@
       "price": 54310.44140625,
       "shares": 0.001841266566993729,
       "reason": "Pequeña posición especulativa en Bitcoin (10%). Alto potencial de rentabilidad en un horizonte de 6 meses, con riesgo acotado al 10% del portfolio. Aporta descorrelación adicional respecto a activos tradicionales."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "VWCE.DE",
+      "amount_eur": 4100.0,
+      "price": 165.8800048828125,
+      "shares": 24.716661920142116,
+      "reason": "Ampliar posición en ETF de renta variable global para alcanzar ~45% del portfolio. VWCE.DE replica el FTSE All-World, ofreciendo diversificación máxima (>3500 empresas) en mercados desarrollados y emergentes. Es el núcleo de la cartera para el horizonte de 6 meses."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "AGGH.L",
+      "amount_eur": 1300.0,
+      "price": 5.2135,
+      "shares": 249.3526421789585,
+      "reason": "Ampliar posición en ETF de renta fija global para alcanzar ~15% del portfolio. AGGH.L ofrece exposición a bonos gubernamentales y corporativos diversificados globalmente, reduciendo la volatilidad total de la cartera y actuando como contrapeso a la renta variable."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "SGLD.L",
+      "amount_eur": 800.0,
+      "price": 400.9599914550781,
+      "shares": 1.9952115349384645,
+      "reason": "Ampliar posición en oro para alcanzar ~10% del portfolio. El oro actúa como cobertura en escenarios de incertidumbre macroeconómica, inflación elevada o caídas de bolsa. Tiene baja correlación con renta variable, mejorando el perfil de riesgo/rentabilidad ajustado de la cartera."
+    },
+    {
+      "date": "2026-07-03",
+      "type": "buy",
+      "ticker": "BTC-EUR",
+      "amount_eur": 400.0,
+      "price": 54344.01171875,
+      "shares": 0.0073605165932567745,
+      "reason": "Ampliar posición en Bitcoin para alcanzar ~5% del portfolio. Pequeña exposición a cripto con potencial de retorno asimétrico. Se mantiene controlada al 5% para no comprometer el perfil de riesgo general de la cartera, pero aprovecha la tendencia de adopción institucional de BTC."
     }
   ],
   "snapshots": [
@@ -93,6 +129,34 @@
         }
       },
       "note": "SESIÓN INICIAL (2026-07-03): Construcción de la cartera desde cero con 1.000 EUR. Asignación: 40% VWCE.DE (RV global, 400€), 20% AGGH.L (bonos globales, 200€), 20% SGLD.L (oro físico, 200€), 10% BTC-EUR (cripto, 100€), 10% cash reserva (100€). Estrategia equilibrada y diversificada para un horizonte de 6 meses, priorizando rentabilidad ajustada a riesgo. Próxima revisión: ~1 mes."
+    },
+    {
+      "date": "2026-07-03",
+      "total_value": 10000.137798494054,
+      "cash": 2500.0,
+      "positions": {
+        "VWCE.DE": {
+          "shares": 27.128043570887687,
+          "price": 165.8800048828125,
+          "value": 4500.0
+        },
+        "AGGH.L": {
+          "shares": 287.71458712956746,
+          "price": 5.2135,
+          "value": 1500.0
+        },
+        "SGLD.L": {
+          "shares": 2.4940144186730806,
+          "price": 400.9599914550781,
+          "value": 1000.0
+        },
+        "BTC-EUR": {
+          "shares": 0.009201783160250504,
+          "price": 54352.26953125,
+          "value": 500.1377984940528
+        }
+      },
+      "note": "SESIÓN INAUGURAL (2026-07-03): Despliegue inicial del capital. Se pasó de 91% cash a una cartera diversificada: 45% VWCE.DE (renta variable global, 4.500€), 15% AGGH.L (renta fija global, 1.500€), 10% SGLD.L (oro, 1.000€), 5% BTC-EUR (Bitcoin, 500€) y 25% cash de reserva (2.500€). Valor total: ~10.000€. Estrategia: núcleo de renta variable global con amortiguadores de bonos y oro, y exposición menor a cripto. Sin pérdidas ni ganancias aún (precio de compra = precio de mercado)."
     }
   ]
 }
