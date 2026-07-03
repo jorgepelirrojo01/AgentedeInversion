@@ -1,3 +1,4 @@
+
 name: Bot de Telegram
 
 on:
@@ -29,6 +30,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Guardar cambios (config: hora, offset de Telegram)
+ Check failure on line 31 in .github/workflows/telegram-bot.yml
+
+
+GitHub Actions
+/ .github/workflows/telegram-bot.yml
+Invalid workflow file
+
+You have an error in your yaml syntax on line 31
         run: |
           git config user.name "agente-inversion-bot"
           git config user.email "actions@users.noreply.github.com"
