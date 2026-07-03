@@ -76,15 +76,17 @@ def current_total_value():
     state = load_json(STATE_PATH, {})
     total = state.get("cash", 0.0)
     detalle = []
+    precios_actuales = {}
     for ticker, pos in state.get("positions", {}).items():
         try:
             price = get_price(ticker)
         except Exception:
             price = pos["avg_price"]  # fallback si el precio no esta disponible
+        precios_actuales[ticker] = price
         valor = price * pos["shares"]
         total += valor
         detalle.append((ticker, valor))
-    return total, detalle, state
+    return total, detalle, precios_actuales, state
 
 
 def pct_change(old, new):
@@ -111,31 +113,35 @@ def get_historical_price(ticker: str, days_ago: int) -> float:
     return float(hist["Close"].iloc[closest])
 
 
-def historical_portfolio_value(state, days_ago: int):
+def historical_portfolio_value(state, days_ago: int, precios_actuales: dict):
     """
     Valor aproximado de la cartera hace N dias: usa las posiciones ACTUALES
     (numero de participaciones de hoy) valoradas al precio de aquel momento.
-    Nota: si hubo compras/ventas entre medias, es una aproximacion, no el
-    valor exacto que tenia la cartera ese dia (para eso haria falta
-    reconstruir el historial completo de transacciones).
+    Si no se puede obtener el precio historico de un ticker (ocurre con
+    algunos ETFs poco liquidos), se usa su precio ACTUAL como aproximacion
+    -> se asume que "no cambio" en vez de excluirlo, que distorsionaria
+    la comparacion (una posicion que desaparece del pasado infla el % de
+    subida de forma artificial).
+    Nota: si hubo compras/ventas entre medias, sigue siendo una aproximacion,
+    no el valor exacto que tenia la cartera ese dia.
     """
     total = state.get("cash", 0.0)  # aproximamos con el cash actual
     for ticker, pos in state.get("positions", {}).items():
         try:
             price = get_historical_price(ticker, days_ago)
         except Exception:
-            continue
+            price = precios_actuales.get(ticker, pos["avg_price"])
         total += price * pos["shares"]
     return total
 
 
 def build_message() -> str:
-    total, detalle, state = current_total_value()
+    total, detalle, precios_actuales, state = current_total_value()
 
     rentabilidad_total = pct_change(CAPITAL_INICIAL, total)
-    v24h = historical_portfolio_value(state, 1)
-    v7d = historical_portfolio_value(state, 7)
-    v30d = historical_portfolio_value(state, 30)
+    v24h = historical_portfolio_value(state, 1, precios_actuales)
+    v7d = historical_portfolio_value(state, 7, precios_actuales)
+    v30d = historical_portfolio_value(state, 30, precios_actuales)
 
     def fmt(r):
         return f"{r:+.2f}%" if r is not None else "sin datos suficientes"
@@ -157,7 +163,7 @@ def build_message() -> str:
 
 
 def build_composicion_message() -> str:
-    total, detalle, state = current_total_value()
+    total, detalle, _, state = current_total_value()
     if total <= 0:
         return "Cartera vacia."
     lineas = []
@@ -186,7 +192,7 @@ def build_historial_message(n: int = 8) -> str:
 
 def build_comparar_message() -> str:
     """Compara la cartera real con lo que habria dado comprar-y-mantener el benchmark."""
-    total, _, state = current_total_value()
+    total, _, _, state = current_total_value()
     created_at = state.get("created_at")
     if not created_at:
         return "No hay fecha de inicio registrada para comparar."
