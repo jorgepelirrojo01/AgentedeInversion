@@ -1,4 +1,4 @@
-# Agente de inversion simulado (1000 EUR ficticios)
+# Agente de inversion simulado (10000 EUR ficticios)
 
 Proyecto educativo para aprender a construir agentes con el Claude Agent SDK.
 El agente gestiona una cartera simulada, sin dinero real, usando precios de
@@ -25,7 +25,7 @@ setx ANTHROPIC_API_KEY "tu-api-key"     # Windows
 ## 2. Primera sesion
 
 ```bash
-python agent.py "Es la primera sesion. Analiza el mercado actual y define tu estrategia inicial para los 1000 EUR."
+python agent.py "Es la primera sesion. Analiza el mercado actual y define tu estrategia inicial para los 10000 EUR."
 ```
 
 El agente vera que la cartera esta vacia (todo en cash), decidira una estrategia,
@@ -72,6 +72,26 @@ que dio el agente en cada una.
 - `tools.py` — herramientas del agente: `get_price`, `get_portfolio`, `buy`, `sell`, `save_snapshot`.
 - `agent.py` — punto de entrada: define el system prompt (rol, objetivo, reglas) y lanza una sesion.
 - `ver_evolucion.py` — informe de rentabilidad y transacciones.
+
+## 6.5. Comandos del bot de Telegram
+
+| Comando | Que hace |
+|---|---|
+| `/actualiza` | Estado actual + rentabilidad total, 24h, 7d y 30d |
+| `/composicion` | Desglose en % de cada posicion sobre el total |
+| `/historial` | Ultimos movimientos realizados, con el motivo de cada uno |
+| `/comparar` | Tu cartera vs. haber comprado y mantenido un ETF global desde el dia 1 |
+| `/hora HH:MM` | Cambia la hora del aviso diario (hora de Madrid) |
+| `/pausar` | Silencia avisos y desactiva la revision automatica semanal |
+| `/reanudar` | Reactiva avisos y revision automatica |
+| `/rebalancear <texto>` | Pide una PROPUESTA al agente (no ejecuta nada aun) |
+| `/confirmar` | Ejecuta de verdad la ultima propuesta pendiente |
+| `/cancelar` | Descarta la propuesta pendiente sin ejecutarla |
+| `/help` | Lista de comandos |
+
+Nota sobre `/pausar`: solo bloquea la revision automatica del cron semanal. Si lanzas el
+workflow a mano desde Actions, o usas `/rebalancear`, se ejecuta igualmente — la pausa
+es para "no quiero que decida nada solo mientras no le preste atencion", no un bloqueo total.
 
 ## 6. Alojarlo en GitHub Actions (sin ordenador ni servidor propio)
 

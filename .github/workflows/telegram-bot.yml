@@ -1,0 +1,37 @@
+name: Bot de Telegram
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # cada 10 minutos, todo el dia
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install yfinance requests
+
+      - name: Ejecutar bot
+        run: python telegram_bot.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Guardar cambios (config: hora, offset de Telegram)
+        run: |
+          git config user.name "agente-inversion-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add bot_config.json
+          git diff --cached --quiet && echo "Sin cambios" || git commit -m "Bot: actualizar config"
+          git push

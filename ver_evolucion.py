@@ -11,7 +11,7 @@ STATE_PATH = os.path.join(os.path.dirname(__file__), "portfolio_state.json")
 with open(STATE_PATH, "r", encoding="utf-8") as f:
     state = json.load(f)
 
-capital_inicial = 1000.0
+capital_inicial = 10000.0
 print(f"Capital inicial: {capital_inicial:.2f} EUR ({state['created_at']})\n")
 print(f"{'Fecha':<12} {'Valor total':>12} {'Rentabilidad':>14}  Nota")
 print("-" * 70)
