@@ -17,10 +17,17 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 def get_price(ticker: str) -> float:
     import yfinance as yf
     t = yf.Ticker(ticker)
-    hist = t.history(period="1d")
-    if hist.empty:
-        raise ValueError(f"Sin datos para {ticker}")
-    return float(hist["Close"].iloc[-1])
+    price = None
+    try:
+        price = t.fast_info.get("lastPrice")
+    except Exception:
+        price = None
+    if price is None:
+        hist = t.history(period="5d")
+        if hist.empty:
+            raise ValueError(f"Sin datos para {ticker}")
+        price = float(hist["Close"].iloc[-1])
+    return float(price)
 
 
 def build_message() -> str:
@@ -41,7 +48,15 @@ def build_message() -> str:
                 f"{ticker}: {valor:.2f} EUR ({variacion:+.1f}% desde compra)"
             )
         except Exception:
-            lineas.append(f"{ticker}: error al obtener precio")
+            # Fallback: si no se puede consultar el precio actual, usamos el
+            # coste medio de compra para no excluir la posicion del total
+            # (evita mostrar una "perdida" falsa por fallo de datos).
+            valor_estimado = pos["avg_price"] * pos["shares"]
+            total += valor_estimado
+            lineas.append(
+                f"{ticker}: ~{valor_estimado:.2f} EUR (precio actual no disponible, "
+                f"usando ultimo coste conocido)"
+            )
 
     rentabilidad = (total / capital_inicial - 1) * 100
 
