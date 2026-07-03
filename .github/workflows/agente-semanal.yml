@@ -1,0 +1,54 @@
+name: Revision semanal de cartera
+
+on:
+  # Se ejecuta solo, segun este horario (formato cron estandar, en UTC)
+  schedule:
+    - cron: '0 9 * * 1'   # todos los lunes a las 9:00 UTC (11:00 hora de Madrid en verano)
+
+  # Ademas, te deja lanzarlo a mano desde la pestana "Actions" de GitHub, cuando quieras
+  workflow_dispatch:
+
+# Permiso necesario para que el workflow pueda hacer "git push" del nuevo estado
+permissions:
+  contents: write
+
+jobs:
+  ejecutar-agente:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Descarga el codigo de tu repo dentro de la maquina temporal de GitHub
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      # 2. Instala Python en esa maquina temporal
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. Instala Node.js (lo necesita el Claude Agent SDK por dentro)
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 4. Instala las dependencias del proyecto (claude-agent-sdk, yfinance...)
+      - name: Instalar dependencias
+        run: pip install -r investment_agent/requirements.txt
+
+      # 5. Ejecuta el agente. La API key sale de los "Secrets" del repo, nunca queda escrita en el codigo
+      - name: Ejecutar el agente
+        run: python investment_agent/agent.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # 6. El agente modifico portfolio_state.json localmente en la maquina temporal.
+      #    Este paso lo sube de vuelta a tu repo para que quede guardado y lo tengas la proxima semana.
+      - name: Guardar el nuevo estado en el repositorio
+        run: |
+          git config user.name "agente-inversion-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add investment_agent/portfolio_state.json
+          git diff --cached --quiet && echo "Sin cambios que guardar" || git commit -m "Snapshot cartera $(date +%F)"
+          git push
