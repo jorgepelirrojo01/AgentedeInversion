@@ -2,7 +2,7 @@ name: Revision semanal de cartera
 
 on:
   schedule:
-    - cron: '0 9 * * 1'   # lunes 9:00 UTC
+    - cron: '0 9 1,15 * *'   # dias 1 y 15 de cada mes a las 9:00 UTC (~cada 2 semanas)
   workflow_dispatch:
     inputs:
       mensaje:
