@@ -1,6 +1,7 @@
 {
   "created_at": "2026-07-03",
   "currency": "EUR",
+  "capital_inicial": 10000.0,
   "cash": 1000.0,
   "positions": {
     "VWCE.DE": {
