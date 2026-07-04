@@ -7,22 +7,30 @@ Solo /rebalancear + /confirmar disparan una ejecucion real del agente
 Comandos disponibles:
     /actualiza             -> estado actual + rentabilidad 24h / 7d / 30d
     /composicion           -> desglose en % de cada posicion
-    /historial              -> ultimos movimientos realizados
-    /comparar               -> vs. benchmark de comprar-y-mantener (VWCE.DE)
-    /hora HH:MM             -> cambia la hora del aviso diario (hora de Madrid)
-    /pausar                 -> silencia avisos y revisiones automaticas
-    /reanudar                -> reactiva avisos y revisiones automaticas
-    /rebalancear <texto>    -> pide una propuesta de cambios al agente (no ejecuta nada aun)
-    /confirmar               -> ejecuta la ultima propuesta pendiente de /rebalancear
-    /cancelar                 -> descarta la propuesta pendiente
-    /help                     -> lista de comandos
+    /historial             -> ultimos movimientos realizados
+    /comparar              -> vs. benchmark de comprar-y-mantener
+    /hora HH:MM            -> cambia la hora del aviso diario (hora de Madrid)
+    /pausar                -> silencia avisos y revisiones automaticas
+    /reanudar              -> reactiva avisos y revisiones automaticas
+    /rebalancear <texto>   -> pide una propuesta de cambios al agente (no ejecuta nada aun)
+    /confirmar             -> ejecuta la ultima propuesta pendiente de /rebalancear
+    /cancelar              -> descarta la propuesta pendiente
+    /help                  -> lista de comandos
 """
 
 import json
 import os
 from datetime import datetime, timedelta, timezone
 
+try:
+    from zoneinfo import ZoneInfo
+    MADRID_TZ = ZoneInfo("Europe/Madrid")
+except Exception:
+    MADRID_TZ = None  # fallback si el sistema no tiene tzdata
+
 import requests
+
+from market import get_price, get_historical_price
 
 REPO_DIR = os.path.dirname(__file__)
 STATE_PATH = os.path.join(REPO_DIR, "portfolio_state.json")
@@ -33,22 +41,18 @@ TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY")  # owner/repo, lo pone Actions solo
 
-CAPITAL_INICIAL = 10000.0
 BENCHMARK_TICKER = "VWCE.DE"   # usado por /comparar
 UMBRAL_ALERTA_PCT = 5.0        # variacion en 24h que dispara una alerta automatica
-
-# Aproximacion de zona horaria de Madrid respecto a UTC.
-# CEST (marzo-octubre) = UTC+2, CET (resto del ano) = UTC+1.
-# Si en algun momento notas que la hora del aviso se desfasa 1h por el
-# cambio de horario, ajusta este valor manualmente a 1.
-MADRID_OFFSET_HOURS = 2
 
 
 def load_json(path, default):
     if not os.path.exists(path):
         return default
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return default
 
 
 def save_json(path, data):
@@ -56,20 +60,17 @@ def save_json(path, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
-def get_price(ticker: str) -> float:
-    import yfinance as yf
-    t = yf.Ticker(ticker)
-    price = None
-    try:
-        price = t.fast_info.get("lastPrice")
-    except Exception:
-        price = None
-    if price is None:
-        hist = t.history(period="5d")
-        if hist.empty:
-            raise ValueError(f"Sin datos para {ticker}")
-        price = float(hist["Close"].iloc[-1])
-    return float(price)
+def capital_inicial() -> float:
+    """Lee el capital inicial del propio estado (fuente unica de verdad)."""
+    state = load_json(STATE_PATH, {})
+    return float(state.get("capital_inicial", 10000.0))
+
+
+def ahora_madrid() -> datetime:
+    if MADRID_TZ is not None:
+        return datetime.now(MADRID_TZ)
+    # Fallback aproximado si no hay tzdata: UTC+2 (horario de verano)
+    return datetime.now(timezone.utc) + timedelta(hours=2)
 
 
 def current_total_value():
@@ -81,7 +82,7 @@ def current_total_value():
         try:
             price = get_price(ticker)
         except Exception:
-            price = pos["avg_price"]  # fallback si el precio no esta disponible
+            price = pos.get("avg_price", 0.0)  # fallback si el precio no esta disponible
         precios_actuales[ticker] = price
         valor = price * pos["shares"]
         total += valor
@@ -95,68 +96,45 @@ def pct_change(old, new):
     return (new / old - 1) * 100
 
 
-def get_historical_price(ticker: str, days_ago: int) -> float:
-    """Precio de cierre mas cercano a 'days_ago' dias atras, directamente de yfinance."""
-    import yfinance as yf
-    import pandas as pd
-
-    period = "1mo" if days_ago <= 25 else "3mo"
-    hist = yf.Ticker(ticker).history(period=period)
-    if hist.empty:
-        raise ValueError(f"Sin historico para {ticker}")
-
-    target = pd.Timestamp(datetime.now(timezone.utc) - timedelta(days=days_ago))
-    idx = hist.index
-    idx_utc = idx.tz_convert("UTC") if idx.tz is not None else idx.tz_localize("UTC")
-    diffs = abs(idx_utc - target)  # target ya es UTC-aware, no hace falta tz_localize otra vez
-    closest = diffs.argmin()
-    return float(hist["Close"].iloc[closest])
-
-
 def historical_portfolio_value(state, days_ago: int, precios_actuales: dict):
     """
-    Valor aproximado de la cartera hace N dias: usa las posiciones ACTUALES
-    (numero de participaciones de hoy) valoradas al precio de aquel momento.
-    Si no se puede obtener el precio historico de un ticker (ocurre con
-    algunos ETFs poco liquidos), se usa su precio ACTUAL como aproximacion
-    -> se asume que "no cambio" en vez de excluirlo, que distorsionaria
-    la comparacion (una posicion que desaparece del pasado infla el % de
-    subida de forma artificial).
-    Nota: si hubo compras/ventas entre medias, sigue siendo una aproximacion,
-    no el valor exacto que tenia la cartera ese dia.
+    Valor aproximado de la cartera hace N dias: posiciones ACTUALES valoradas
+    al precio de aquel momento. Si falla el historico de un ticker, se usa su
+    precio actual (se asume "sin cambio") en vez de excluirlo, que distorsionaria
+    la comparacion.
     """
-    total = state.get("cash", 0.0)  # aproximamos con el cash actual
+    total = state.get("cash", 0.0)
     for ticker, pos in state.get("positions", {}).items():
         try:
             price = get_historical_price(ticker, days_ago)
         except Exception:
-            price = precios_actuales.get(ticker, pos["avg_price"])
+            price = precios_actuales.get(ticker, pos.get("avg_price", 0.0))
         total += price * pos["shares"]
     return total
 
 
+def dias_desde_creacion(state):
+    created_at = state.get("created_at")
+    if not created_at:
+        return None
+    try:
+        return (datetime.now(timezone.utc).date() - datetime.strptime(created_at, "%Y-%m-%d").date()).days
+    except ValueError:
+        return None
+
+
 def build_message() -> str:
     total, detalle, precios_actuales, state = current_total_value()
+    cap = capital_inicial()
+    rentabilidad_total = pct_change(cap, total)
+    dias = dias_desde_creacion(state)
 
-    rentabilidad_total = pct_change(CAPITAL_INICIAL, total)
-
-    created_at = state.get("created_at")
-    dias_desde_creacion = None
-    if created_at:
-        dias_desde_creacion = (
-            datetime.now(timezone.utc).date() - datetime.strptime(created_at, "%Y-%m-%d").date()
-        ).days
-
-    def valor_hace(dias):
-        # Si la cartera no lleva tanto tiempo abierta, no tiene sentido
-        # comparar contra un periodo en el que ni siquiera existia.
-        if dias_desde_creacion is None or dias_desde_creacion < dias:
+    def valor_hace(d):
+        if dias is None or dias < d:
             return None
-        return historical_portfolio_value(state, dias, precios_actuales)
+        return historical_portfolio_value(state, d, precios_actuales)
 
-    v24h = valor_hace(1)
-    v7d = valor_hace(7)
-    v30d = valor_hace(30)
+    v24h, v7d, v30d = valor_hace(1), valor_hace(7), valor_hace(30)
 
     def fmt(r):
         return f"{r:+.2f}%" if r is not None else "sin datos suficientes (cartera muy reciente)"
@@ -165,7 +143,7 @@ def build_message() -> str:
     for ticker, valor in detalle:
         lineas.append(f"{ticker}: {valor:.2f} EUR")
 
-    mensaje = (
+    return (
         f"*Estado de la cartera*\n\n"
         f"Valor total: *{total:.2f} EUR*\n"
         f"Rentabilidad total: *{fmt(rentabilidad_total)}*\n"
@@ -174,16 +152,14 @@ def build_message() -> str:
         f"Ultimo mes: *{fmt(pct_change(v30d, total))}*\n\n"
         + "\n".join(lineas)
     )
-    return mensaje
 
 
 def build_composicion_message() -> str:
     total, detalle, _, state = current_total_value()
     if total <= 0:
         return "Cartera vacia."
-    lineas = []
     cash = state.get("cash", 0.0)
-    lineas.append(f"Cash: {cash:.2f} EUR ({cash / total * 100:.1f}%)")
+    lineas = [f"Cash: {cash:.2f} EUR ({cash / total * 100:.1f}%)"]
     for ticker, valor in detalle:
         lineas.append(f"{ticker}: {valor:.2f} EUR ({valor / total * 100:.1f}%)")
     return f"*Composicion de la cartera*\n\nValor total: *{total:.2f} EUR*\n\n" + "\n".join(lineas)
@@ -194,77 +170,77 @@ def build_historial_message(n: int = 8) -> str:
     transacciones = state.get("transactions", [])
     if not transacciones:
         return "Todavia no hay ningun movimiento registrado."
-    ultimas = transacciones[-n:][::-1]  # las mas recientes primero
+    ultimas = transacciones[-n:][::-1]
     lineas = []
     for tx in ultimas:
-        emoji = "🟢" if tx["type"] == "buy" else "🔴"
+        emoji = "🟢" if tx.get("type") == "buy" else "🔴"
+        # Sin cursiva markdown en el reason: puede contener caracteres que rompen el formato
         lineas.append(
-            f"{emoji} {tx['date']} - {tx['type'].upper()} {tx['ticker']} "
-            f"({tx['amount_eur']:.2f} EUR)\n   _{tx.get('reason', '')}_"
+            f"{emoji} {tx.get('date','?')} - {tx.get('type','?').upper()} {tx.get('ticker','?')} "
+            f"({tx.get('amount_eur',0):.2f} EUR)\n   {tx.get('reason', '')}"
         )
     return f"*Ultimos {len(ultimas)} movimientos*\n\n" + "\n\n".join(lineas)
 
 
 def build_comparar_message() -> str:
-    """Compara la cartera real con lo que habria dado comprar-y-mantener el benchmark."""
     total, _, _, state = current_total_value()
-    created_at = state.get("created_at")
-    if not created_at:
+    cap = capital_inicial()
+    dias = dias_desde_creacion(state)
+    if dias is None:
         return "No hay fecha de inicio registrada para comparar."
-
-    dias_transcurridos = (
-        datetime.now(timezone.utc).date() - datetime.strptime(created_at, "%Y-%m-%d").date()
-    ).days
-    dias_transcurridos = max(dias_transcurridos, 1)
+    dias = max(dias, 1)
 
     try:
-        precio_inicio = get_historical_price(BENCHMARK_TICKER, dias_transcurridos)
+        precio_inicio = get_historical_price(BENCHMARK_TICKER, dias)
         precio_ahora = get_price(BENCHMARK_TICKER)
     except Exception:
         return f"No se pudo obtener el precio de {BENCHMARK_TICKER} para comparar."
 
-    valor_benchmark = (CAPITAL_INICIAL / precio_inicio) * precio_ahora
-    rentabilidad_cartera = pct_change(CAPITAL_INICIAL, total)
-    rentabilidad_benchmark = pct_change(CAPITAL_INICIAL, valor_benchmark)
-    diferencia = rentabilidad_cartera - rentabilidad_benchmark
+    valor_benchmark = (cap / precio_inicio) * precio_ahora
+    r_cartera = pct_change(cap, total)
+    r_benchmark = pct_change(cap, valor_benchmark)
+    diferencia = r_cartera - r_benchmark
 
     veredicto = (
         "El agente le esta ganando al mercado" if diferencia > 0
         else "El mercado (comprar y mantener) le esta ganando al agente" if diferencia < 0
         else "Empate tecnico con el mercado"
     )
-
     return (
         f"*Tu cartera vs. comprar-y-mantener {BENCHMARK_TICKER}*\n\n"
-        f"Tu cartera: *{total:.2f} EUR* ({rentabilidad_cartera:+.2f}%)\n"
-        f"Si hubieras comprado solo {BENCHMARK_TICKER} el dia 1: "
-        f"*{valor_benchmark:.2f} EUR* ({rentabilidad_benchmark:+.2f}%)\n\n"
-        f"Diferencia: *{diferencia:+.2f} puntos*\n"
-        f"{veredicto}"
+        f"Tu cartera: *{total:.2f} EUR* ({r_cartera:+.2f}%)\n"
+        f"Solo {BENCHMARK_TICKER} desde el dia 1: *{valor_benchmark:.2f} EUR* ({r_benchmark:+.2f}%)\n\n"
+        f"Diferencia: *{diferencia:+.2f} puntos*\n{veredicto}"
     )
 
 
 def send_telegram(text: str):
+    """Envia un mensaje. Si el Markdown falla (caracteres raros), reintenta en texto plano.
+    Nunca lanza excepcion hacia arriba: un fallo de envio no debe romper el ciclo."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    resp = requests.post(url, json={
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "parse_mode": "Markdown",
-    })
-    resp.raise_for_status()
-
+    try:
+        resp = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}, timeout=20)
+        if resp.status_code == 200:
+            return
+    except Exception:
+        pass
+    # Reintento sin parse_mode: el texto plano siempre entra
+    try:
+        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=20)
+    except Exception as e:
+        print(f"No se pudo enviar mensaje a Telegram: {e}")
 
 
 def check_alerts(config):
-    """Avisa si algun activo se ha movido mas de UMBRAL_ALERTA_PCT en 24h.
-    Como mucho una alerta por ticker y por dia, para no ser pesado."""
     state = load_json(STATE_PATH, {})
     hoy_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     alertados_hoy = config.get("alertados_hoy", {})
+    # Limpiamos alertas de dias anteriores para que el dict no crezca sin fin
+    alertados_hoy = {t: d for t, d in alertados_hoy.items() if d == hoy_str}
 
     for ticker, pos in state.get("positions", {}).items():
         if alertados_hoy.get(ticker) == hoy_str:
-            continue  # ya avisamos hoy de este activo
+            continue
         try:
             precio_ahora = get_price(ticker)
             precio_ayer = get_historical_price(ticker, 1)
@@ -273,42 +249,40 @@ def check_alerts(config):
         variacion = pct_change(precio_ayer, precio_ahora)
         if variacion is not None and abs(variacion) >= UMBRAL_ALERTA_PCT:
             direccion = "subido" if variacion > 0 else "caido"
-            send_telegram(
-                f"⚠️ *Alerta*: {ticker} ha {direccion} un *{variacion:+.2f}%* en las ultimas 24h."
-            )
+            send_telegram(f"⚠️ *Alerta*: {ticker} ha {direccion} un *{variacion:+.2f}%* en las ultimas 24h.")
             alertados_hoy[ticker] = hoy_str
 
     config["alertados_hoy"] = alertados_hoy
     return config
 
 
+def _dispatch_agente(mensaje: str, modo: str) -> int:
+    """Lanza el workflow del agente. Devuelve el status_code (o 0 si falta config)."""
+    if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
+        return 0
+    url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/actions/workflows/agente-semanal.yml/dispatches"
+    try:
+        resp = requests.post(url, headers={
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json",
+        }, json={"ref": "main", "inputs": {"mensaje": mensaje[:500], "modo": modo}}, timeout=20)
+        return resp.status_code
+    except Exception:
+        return -1
+
+
 def start_proposal(instrucciones: str):
-    """Pide al agente una PROPUESTA de cambios, sin ejecutar nada todavia."""
     if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
         send_telegram("No se pudo pedir la propuesta: falta configuracion de GitHub.")
         return
-    config = load_json(CONFIG_PATH, {})
-    config["propuesta_pendiente"] = {
-        "instrucciones": instrucciones[:500],
-        "fecha": datetime.now(timezone.utc).isoformat(),
-    }
-    save_json(CONFIG_PATH, config)
-
-    url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/actions/workflows/agente-semanal.yml/dispatches"
-    resp = requests.post(url, headers={
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-    }, json={
-        "ref": "main",
-        "inputs": {"mensaje": instrucciones[:500], "modo": "proponer"},
-    })
-    if resp.status_code == 204:
-        send_telegram(
-            "Pidiendo al agente una propuesta (sin ejecutar nada aun)... "
-            "te mando el plan en 1-2 minutos. Cuando lo veas, responde /confirmar o /cancelar."
-        )
+    code = _dispatch_agente(instrucciones, "proponer")
+    if code == 204:
+        config = load_json(CONFIG_PATH, {})
+        config["propuesta_pendiente"] = {"instrucciones": instrucciones[:500], "fecha": datetime.now(timezone.utc).isoformat()}
+        save_json(CONFIG_PATH, config)
+        send_telegram("Pidiendo al agente una propuesta (sin ejecutar nada aun). Te mando el plan en 1-2 minutos. Luego responde /confirmar o /cancelar.")
     else:
-        send_telegram(f"No se pudo pedir la propuesta (HTTP {resp.status_code}).")
+        send_telegram(f"No se pudo pedir la propuesta (HTTP {code}).")
 
 
 def confirm_proposal():
@@ -317,28 +291,14 @@ def confirm_proposal():
     if not propuesta:
         send_telegram("No hay ninguna propuesta pendiente de confirmar.")
         return
-    if not GITHUB_TOKEN or not GITHUB_REPOSITORY:
-        send_telegram("No se pudo ejecutar: falta configuracion de GitHub.")
-        return
-
-    url = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/actions/workflows/agente-semanal.yml/dispatches"
-    resp = requests.post(url, headers={
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-    }, json={
-        "ref": "main",
-        "inputs": {
-            "mensaje": propuesta["instrucciones"] + " (Ya propusiste un plan para esto antes: ejecutalo ahora de verdad.)",
-            "modo": "ejecutar",
-        },
-    })
-    config["propuesta_pendiente"] = None
-    save_json(CONFIG_PATH, config)
-
-    if resp.status_code == 204:
+    mensaje = propuesta["instrucciones"] + " (Ya propusiste un plan para esto antes: ejecutalo ahora de verdad.)"
+    code = _dispatch_agente(mensaje, "ejecutar")
+    if code == 204:
+        config["propuesta_pendiente"] = None  # solo la limpiamos si el lanzamiento tuvo exito
+        save_json(CONFIG_PATH, config)
         send_telegram("Ejecutando el plan confirmado. Te aviso con el resumen en 1-2 minutos.")
     else:
-        send_telegram(f"No se pudo ejecutar (HTTP {resp.status_code}).")
+        send_telegram(f"No se pudo ejecutar (HTTP {code}). La propuesta sigue pendiente, prueba /confirmar de nuevo.")
 
 
 def cancel_proposal():
@@ -351,91 +311,94 @@ def cancel_proposal():
         send_telegram("No habia ninguna propuesta pendiente.")
 
 
+def _set_config(clave, valor):
+    config = load_json(CONFIG_PATH, {})
+    config[clave] = valor
+    save_json(CONFIG_PATH, config)
+
+
 def handle_command(text: str):
     text = text.strip()
     if text.startswith("/hora"):
         partes = text.split(maxsplit=1)
-        if len(partes) == 2 and ":" in partes[1]:
-            config = load_json(CONFIG_PATH, {})
-            config["hora_aviso"] = partes[1].strip()
-            save_json(CONFIG_PATH, config)
-            send_telegram(f"Hora del aviso diario actualizada a las {partes[1].strip()} (hora de Madrid).")
+        if len(partes) == 2:
+            candidata = partes[1].strip()
+            try:
+                datetime.strptime(candidata, "%H:%M")  # valida de verdad HH:MM
+                _set_config("hora_aviso", candidata)
+                send_telegram(f"Hora del aviso diario actualizada a las {candidata} (hora de Madrid).")
+            except ValueError:
+                send_telegram("Formato invalido. Uso: /hora HH:MM (ejemplo: /hora 09:30)")
         else:
             send_telegram("Uso: /hora HH:MM (ejemplo: /hora 11:00)")
 
     elif text.startswith("/actualiza") or text.startswith("/estado"):
         send_telegram(build_message())
-
     elif text.startswith("/composicion"):
         send_telegram(build_composicion_message())
-
     elif text.startswith("/historial"):
         send_telegram(build_historial_message())
-
     elif text.startswith("/comparar"):
         send_telegram(build_comparar_message())
-
     elif text.startswith("/pausar"):
-        config = load_json(CONFIG_PATH, {})
-        config["pausado"] = True
-        save_json(CONFIG_PATH, config)
-        send_telegram("Pausado. No recibiras avisos ni se ejecutaran revisiones automaticas hasta que mandes /reanudar.")
-
+        _set_config("pausado", True)
+        send_telegram("Pausado. No recibiras avisos ni revisiones automaticas hasta que mandes /reanudar.")
     elif text.startswith("/reanudar"):
-        config = load_json(CONFIG_PATH, {})
-        config["pausado"] = False
-        save_json(CONFIG_PATH, config)
+        _set_config("pausado", False)
         send_telegram("Reanudado. Avisos y revisiones automaticas activos de nuevo.")
-
     elif text.startswith("/rebalancear"):
         instrucciones = text[len("/rebalancear"):].strip()
         if not instrucciones:
             send_telegram("Uso: /rebalancear <lo que quieras pedirle al agente>")
         else:
             start_proposal(instrucciones)
-
     elif text.startswith("/confirmar"):
         confirm_proposal()
-
     elif text.startswith("/cancelar"):
         cancel_proposal()
-
     elif text.startswith("/help") or text.startswith("/start"):
         send_telegram(
             "*Comandos disponibles*\n\n"
-            "/actualiza - estado actual + rentabilidad 24h/7d/30d\n"
+            "/actualiza - estado + rentabilidad 24h/7d/30d\n"
             "/composicion - desglose en % de cada posicion\n"
-            "/historial - ultimos movimientos realizados\n"
+            "/historial - ultimos movimientos\n"
             "/comparar - tu cartera vs comprar-y-mantener\n"
             "/hora HH:MM - cambia la hora del aviso diario\n"
-            "/pausar - silencia avisos y revisiones automaticas\n"
-            "/reanudar - reactiva avisos y revisiones automaticas\n"
-            "/rebalancear <texto> - pide una propuesta al agente (no ejecuta nada)\n"
-            "/confirmar - ejecuta la ultima propuesta pendiente\n"
+            "/pausar - silencia avisos y revisiones\n"
+            "/reanudar - reactiva avisos y revisiones\n"
+            "/rebalancear <texto> - pide una propuesta (no ejecuta)\n"
+            "/confirmar - ejecuta la propuesta pendiente\n"
             "/cancelar - descarta la propuesta pendiente\n"
         )
+    # Cualquier texto que no sea un comando conocido se ignora en silencio
 
 
 def poll_updates():
-    """Consulta si hay mensajes nuevos y los procesa. Devuelve la config actualizada."""
+    """Consulta mensajes nuevos y los procesa. Un comando que falle no bloquea a los demas."""
     config = load_json(CONFIG_PATH, {"hora_aviso": "11:00", "offset": 0, "ultimo_envio": None})
     offset = config.get("offset", 0)
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
-    resp = requests.get(url, params={"offset": offset, "timeout": 0})
-    data = resp.json()
+    try:
+        resp = requests.get(url, params={"offset": offset, "timeout": 0}, timeout=25)
+        data = resp.json()
+    except Exception as e:
+        print(f"No se pudo consultar Telegram: {e}")
+        return config
 
     for update in data.get("result", []):
-        offset = update["update_id"] + 1
+        offset = update["update_id"] + 1  # avanzamos SIEMPRE, aunque el comando falle
         message = update.get("message", {})
         text = message.get("text", "")
         chat_id = str(message.get("chat", {}).get("id", ""))
         if text and chat_id == TELEGRAM_CHAT_ID:
-            handle_command(text)
+            try:
+                handle_command(text)
+            except Exception as e:
+                print(f"Error procesando '{text[:40]}': {e}")
+                send_telegram("Hubo un error procesando ese comando, pero sigo funcionando.")
 
-    # Recargamos del disco antes de guardar el offset: handle_command puede
-    # haber modificado la config (pausado, hora_aviso...) durante el bucle,
-    # y no queremos pisar esos cambios con la copia vieja que teniamos en memoria.
+    # Recargamos del disco: handle_command pudo cambiar la config durante el bucle
     config = load_json(CONFIG_PATH, config)
     config["offset"] = offset
     save_json(CONFIG_PATH, config)
@@ -443,26 +406,20 @@ def poll_updates():
 
 
 def check_scheduled_send(config):
-    """Comprueba si toca enviar el aviso diario programado por el usuario."""
     if config.get("pausado"):
-        return  # el usuario ha pedido silencio con /pausar
-
+        return
     hora_aviso = config.get("hora_aviso", "11:00")
     ultimo_envio = config.get("ultimo_envio")
 
-    ahora_madrid = datetime.now(timezone.utc) + timedelta(hours=MADRID_OFFSET_HOURS)
-    hoy_str = ahora_madrid.strftime("%Y-%m-%d")
-
+    ahora = ahora_madrid()
+    hoy_str = ahora.strftime("%Y-%m-%d")
     try:
         hora_objetivo = datetime.strptime(hora_aviso, "%H:%M").time()
     except ValueError:
         hora_objetivo = datetime.strptime("11:00", "%H:%M").time()
 
-    objetivo_dt = ahora_madrid.replace(
-        hour=hora_objetivo.hour, minute=hora_objetivo.minute, second=0, microsecond=0
-    )
-    # Ventana de 15 min para no depender de que el cron caiga justo al minuto exacto
-    dentro_de_ventana = objetivo_dt <= ahora_madrid < objetivo_dt + timedelta(minutes=15)
+    objetivo_dt = ahora.replace(hour=hora_objetivo.hour, minute=hora_objetivo.minute, second=0, microsecond=0)
+    dentro_de_ventana = objetivo_dt <= ahora < objetivo_dt + timedelta(minutes=15)
 
     if dentro_de_ventana and ultimo_envio != hoy_str:
         send_telegram(build_message())
@@ -474,5 +431,5 @@ if __name__ == "__main__":
     cfg = poll_updates()
     if not cfg.get("pausado"):
         cfg = check_alerts(cfg)
-        save_json(CONFIG_PATH, cfg)  # persistimos alertados_hoy si cambio
+        save_json(CONFIG_PATH, cfg)
     check_scheduled_send(cfg)

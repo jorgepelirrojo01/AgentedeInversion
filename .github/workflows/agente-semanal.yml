@@ -1,11 +1,8 @@
 name: Revision semanal de cartera
 
 on:
-  # Se ejecuta solo, segun este horario (formato cron estandar, en UTC)
   schedule:
-    - cron: '0 9 * * 1'   # todos los lunes a las 9:00 UTC (11:00 hora de Madrid en verano)
-
-  # Tambien se puede lanzar a mano, o disparar desde Telegram (/rebalancear, /confirmar)
+    - cron: '0 9 * * 1'   # lunes 9:00 UTC
   workflow_dispatch:
     inputs:
       mensaje:
@@ -13,14 +10,13 @@ on:
         required: false
         default: ''
       modo:
-        description: 'proponer (no ejecuta nada) o ejecutar (compra/vende de verdad)'
+        description: 'proponer (no ejecuta) o ejecutar (opera de verdad)'
         required: false
         default: 'ejecutar'
 
 permissions:
   contents: write
 
-# Mismo grupo que "Bot de Telegram": evita que ambos hagan push a la vez
 concurrency:
   group: escrituras-al-repo
   cancel-in-progress: false
@@ -28,7 +24,6 @@ concurrency:
 jobs:
   ejecutar-agente:
     runs-on: ubuntu-latest
-
     steps:
       - name: Descargar el repositorio
         uses: actions/checkout@v4
@@ -37,6 +32,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -47,29 +43,36 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Ejecutar el agente
-        run: |
-          if [ -n "${{ github.event.inputs.mensaje }}" ]; then
-            python agent.py "${{ github.event.inputs.mensaje }}"
-          else
-            python agent.py
-          fi
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           AGENT_MODE: ${{ github.event.inputs.modo || 'ejecutar' }}
-          # Solo respetamos la pausa en la ejecucion automatica semanal (cron).
-          # Si lo lanzas a mano (Run workflow) o desde /rebalancear, se ejecuta igualmente.
           RESPETAR_PAUSA: ${{ github.event_name == 'schedule' && '1' || '0' }}
+          # El mensaje se pasa como variable de entorno (no interpolado en la
+          # linea de comando) para que el shell lo trate como dato, no como codigo.
+          MENSAJE: ${{ github.event.inputs.mensaje }}
+        run: |
+          if [ -n "$MENSAJE" ]; then
+            python agent.py "$MENSAJE"
+          else
+            python agent.py
+          fi
 
       - name: Guardar el nuevo estado en el repositorio
         run: |
           git config user.name "agente-inversion-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add portfolio_state.json
-          git diff --cached --quiet && echo "Sin cambios que guardar" || git commit -m "Snapshot cartera $(date +%F)"
+          git add portfolio_state.json bot_config.json
+          git diff --cached --quiet && { echo "Sin cambios que guardar"; exit 0; }
+          git commit -m "Snapshot cartera $(date +%F)"
+          exito=0
           for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
-            echo "Push rechazado (intento $i), reintentando tras sincronizar..."
+            git pull --rebase origin main && git push && exito=1 && break
+            echo "Push rechazado (intento $i), reintentando..."
             sleep 5
           done
+          if [ "$exito" != "1" ]; then
+            echo "ERROR: no se pudo hacer push tras 3 intentos. El estado NO se guardo."
+            exit 1
+          fi

@@ -7,9 +7,14 @@ import json
 import os
 from datetime import date
 
+from claude_agent_sdk import tool, create_sdk_mcp_server
+from market import get_price as _get_price
+
 STATE_PATH = os.path.join(os.path.dirname(__file__), "portfolio_state.json")
 
-from claude_agent_sdk import tool, create_sdk_mcp_server
+# Por debajo de esta cantidad de participaciones, consideramos la posicion
+# cerrada (evita "dust": restos infimos que ensucian la cartera para siempre).
+DUST_THRESHOLD = 1e-6
 
 
 def _load_state():
@@ -20,19 +25,6 @@ def _load_state():
 def _save_state(state):
     with open(STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
-
-
-def _get_price(ticker: str) -> float:
-    """Precio actual real via yfinance. Requiere 'pip install yfinance'."""
-    import yfinance as yf
-    t = yf.Ticker(ticker)
-    price = t.fast_info.get("lastPrice") if hasattr(t, "fast_info") else None
-    if price is None:
-        hist = t.history(period="1d")
-        if hist.empty:
-            raise ValueError(f"No se encontraron datos para el ticker {ticker}")
-        price = float(hist["Close"].iloc[-1])
-    return float(price)
 
 
 @tool("get_price", "Consulta el precio actual de mercado de un ticker (accion, ETF o cripto, ej. AAPL, VWCE.DE, BTC-EUR)", {"ticker": str})
@@ -57,7 +49,7 @@ async def get_portfolio(args):
             price = _get_price(ticker)
             value = price * pos["shares"]
             total += value
-            lines.append(f"  {ticker}: {pos['shares']:.4f} uds @ coste medio {pos['avg_price']:.2f} | precio actual {price:.2f} | valor {value:.2f} EUR")
+            lines.append(f"  {ticker}: {pos['shares']:.6f} uds @ coste medio {pos['avg_price']:.2f} | precio actual {price:.2f} | valor {value:.2f} EUR")
         except Exception as e:
             lines.append(f"  {ticker}: error al valorar ({e})")
     lines.append(f"VALOR TOTAL ESTIMADO: {total:.2f} EUR")
@@ -68,9 +60,14 @@ async def get_portfolio(args):
 async def buy(args):
     state = _load_state()
     ticker = args["ticker"].upper()
-    amount = float(args["amount_eur"])
+    try:
+        amount = float(args["amount_eur"])
+    except (TypeError, ValueError):
+        return {"content": [{"type": "text", "text": "El importe debe ser un numero."}]}
     reason = args.get("reason", "")
 
+    if amount <= 0:
+        return {"content": [{"type": "text", "text": "El importe de compra debe ser positivo."}]}
     if amount > state["cash"]:
         return {"content": [{"type": "text", "text": f"Fondos insuficientes. Cash disponible: {state['cash']:.2f} EUR"}]}
 
@@ -97,28 +94,41 @@ async def buy(args):
         "reason": reason,
     })
     _save_state(state)
-    return {"content": [{"type": "text", "text": f"Compra ejecutada: {shares:.4f} uds de {ticker} a {price:.2f} ({amount:.2f} EUR). Cash restante: {state['cash']:.2f} EUR"}]}
+    return {"content": [{"type": "text", "text": f"Compra ejecutada: {shares:.6f} uds de {ticker} a {price:.2f} ({amount:.2f} EUR). Cash restante: {state['cash']:.2f} EUR"}]}
 
 
-@tool("sell", "Vende parte o toda la posicion de un ticker", {"ticker": str, "shares": float, "reason": str})
+@tool("sell", "Vende parte o toda la posicion de un ticker. Usa shares=-1 para vender toda la posicion.", {"ticker": str, "shares": float, "reason": str})
 async def sell(args):
     state = _load_state()
     ticker = args["ticker"].upper()
-    shares_to_sell = float(args["shares"])
+    try:
+        shares_to_sell = float(args["shares"])
+    except (TypeError, ValueError):
+        return {"content": [{"type": "text", "text": "La cantidad debe ser un numero."}]}
     reason = args.get("reason", "")
 
     pos = state["positions"].get(ticker)
-    if not pos or pos["shares"] < shares_to_sell:
-        return {"content": [{"type": "text", "text": f"No hay suficientes unidades de {ticker} para vender."}]}
+    if not pos:
+        return {"content": [{"type": "text", "text": f"No tienes ninguna posicion en {ticker}."}]}
+
+    # shares = -1 (o cualquier negativo) significa "vender todo"
+    if shares_to_sell < 0:
+        shares_to_sell = pos["shares"]
+
+    if shares_to_sell <= 0:
+        return {"content": [{"type": "text", "text": "La cantidad a vender debe ser positiva (o -1 para vender todo)."}]}
+    if shares_to_sell > pos["shares"] + DUST_THRESHOLD:
+        return {"content": [{"type": "text", "text": f"No hay suficientes unidades de {ticker} (tienes {pos['shares']:.6f})."}]}
 
     try:
         price = _get_price(ticker)
     except Exception as e:
         return {"content": [{"type": "text", "text": f"No se pudo obtener precio de {ticker}: {e}"}]}
 
+    shares_to_sell = min(shares_to_sell, pos["shares"])  # no vender mas de lo que hay
     proceeds = shares_to_sell * price
     pos["shares"] -= shares_to_sell
-    if pos["shares"] <= 1e-9:
+    if pos["shares"] <= DUST_THRESHOLD:
         del state["positions"][ticker]
     else:
         state["positions"][ticker] = pos
@@ -134,7 +144,7 @@ async def sell(args):
         "reason": reason,
     })
     _save_state(state)
-    return {"content": [{"type": "text", "text": f"Venta ejecutada: {shares_to_sell:.4f} uds de {ticker} a {price:.2f} ({proceeds:.2f} EUR). Cash actual: {state['cash']:.2f} EUR"}]}
+    return {"content": [{"type": "text", "text": f"Venta ejecutada: {shares_to_sell:.6f} uds de {ticker} a {price:.2f} ({proceeds:.2f} EUR). Cash actual: {state['cash']:.2f} EUR"}]}
 
 
 @tool("save_snapshot", "Guarda una foto del valor total de la cartera en la fecha actual, con una nota breve sobre la decision de hoy", {"note": str})
