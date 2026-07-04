@@ -2,7 +2,7 @@
   "created_at": "2026-07-03",
   "currency": "EUR",
   "capital_inicial": 10000.0,
-  "cash": 1000.0,
+  "cash": 0.0,
   "positions": {
     "VWCE.DE": {
       "shares": 21.099589444023756,
@@ -27,6 +27,14 @@
     "BTC-EUR": {
       "shares": 0.018401701524832555,
       "avg_price": 54342.80078125
+    },
+    "META": {
+      "shares": 1.0293360351170453,
+      "avg_price": 582.9000244140625
+    },
+    "NVDA": {
+      "shares": 2.0530718895483915,
+      "avg_price": 194.8300018310547
     }
   },
   "transactions": [
@@ -83,6 +91,24 @@
       "price": 54342.80078125,
       "shares": 0.018401701524832555,
       "reason": "Pequeña asignación a Bitcoin como apuesta asimétrica de alto riesgo/recompensa. Impacto máximo acotado al 10% del total. Diversificación fuera de activos tradicionales."
+    },
+    {
+      "date": "2026-07-04",
+      "type": "buy",
+      "ticker": "META",
+      "amount_eur": 600.0,
+      "price": 582.9000244140625,
+      "shares": 1.0293360351170453,
+      "reason": "PEG 0.84 y PER futuro 15.8 = barata para +62% crecimiento. Q1 2026 batió estimaciones: EPS $7.31 vs $6.79, ingresos +33% (máximo desde 2021). -27% del máximo, buena entrada. IA masiva y WhatsApp India como catalizadores. Diversifica satélites más allá de puro tech hardware (MSFT/AAPL)."
+    },
+    {
+      "date": "2026-07-04",
+      "type": "buy",
+      "ticker": "NVDA",
+      "amount_eur": 400.0,
+      "price": 194.8300018310547,
+      "shares": 2.0530718895483915,
+      "reason": "PEG 0.61 y PER futuro 15.3 = extraordinariamente barato para +214% crecimiento beneficios. FY2026: ingresos $215.9B (+65%). Q1 FY27 (mayo 2026) nuevo beat. Target analistas $301 (+56%). Monopolio chips IA con moat enorme. Posición menor por beta 2.21 y exposición indirecta parcial via EQQQ."
     }
   ],
   "snapshots": [
@@ -130,6 +156,54 @@
         }
       },
       "note": "INICIO DE CARTERA - 2026-07-03. Capital inicial: 10.000 EUR. Portafolio construido desde cero con 6 posiciones: VWCE.DE (35%, 3.500€) como núcleo global, EQQQ.DE (20%, 2.000€) sesgo tech/growth, MSFT (7.5%, 750€) y AAPL (7.5%, 750€) como acciones individuales de calidad, AGGH.L (10%, 1.000€) bonos para estabilidad, BTC-EUR (10%, 1.000€) apuesta asimétrica cripto. Reserva cash: 1.000€ (10%). Total invertido: 9.000€."
+    },
+    {
+      "date": "2026-07-04",
+      "total_value": 10006.10049750297,
+      "cash": 0.0,
+      "positions": {
+        "VWCE.DE": {
+          "shares": 21.099589444023756,
+          "price": 165.88,
+          "value": 3499.9998969746607
+        },
+        "EQQQ.DE": {
+          "shares": 3.1565657781953824,
+          "price": 633.6,
+          "value": 2000.0000770645943
+        },
+        "MSFT": {
+          "shares": 1.9206638294360487,
+          "price": 390.489990234375,
+          "value": 750.0
+        },
+        "AAPL": {
+          "shares": 2.430094249212019,
+          "price": 308.6300048828125,
+          "value": 750.0
+        },
+        "AGGH.L": {
+          "shares": 191.80972475304497,
+          "price": 5.2135,
+          "value": 999.9999999999999
+        },
+        "BTC-EUR": {
+          "shares": 0.018401701524832555,
+          "price": 54674.3203125,
+          "value": 1006.1005234637148
+        },
+        "META": {
+          "shares": 1.0293360351170453,
+          "price": 582.9000244140625,
+          "value": 600.0
+        },
+        "NVDA": {
+          "shares": 2.0530718895483915,
+          "price": 194.8300018310547,
+          "value": 400.0
+        }
+      },
+      "note": "Sesión 04-jul-2026: construcción cartera core-satellite 50/50. Núcleo ya existente (VWCE.DE 3500€ + EQQQ.DE 2000€). Satélites reforzados con 2 nuevas posiciones: META 600€ (PEG 0.84, PER fut 15.8, Q1 2026 beat +33% ingresos) y NVDA 400€ (PEG 0.61, PER fut 15.3, FY26 ingresos +65%). GOOGL descartada por ampliación capital dilutiva $85B. Cash 0€, cartera 100% desplegada."
     }
   ]
 }
