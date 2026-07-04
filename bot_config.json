@@ -1,11 +1,8 @@
 {
   "hora_aviso": "11:00",
-  "offset": 839884245,
+  "offset": 839884246,
   "ultimo_envio": null,
   "pausado": false,
   "alertados_hoy": {},
-  "propuesta_pendiente": {
-    "instrucciones": "escanea el mercado y propon una cartera core-satellite 50/50 con análisis real",
-    "fecha": "2026-07-04T01:08:38.901074+00:00"
-  }
+  "propuesta_pendiente": null
 }
