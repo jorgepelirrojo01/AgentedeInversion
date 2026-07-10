@@ -3,6 +3,8 @@
   "offset": 839884249,
   "ultimo_envio": "2026-07-10",
   "pausado": false,
-  "alertados_hoy": {},
+  "alertados_hoy": {
+    "META": "2026-07-10"
+  },
   "propuesta_pendiente": null
 }
