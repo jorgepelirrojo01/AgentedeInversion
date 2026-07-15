@@ -2,19 +2,19 @@
   "created_at": "2026-07-03",
   "currency": "EUR",
   "capital_inicial": 10000.0,
-  "cash": 0.0,
+  "cash": 8.589953613281295,
   "positions": {
     "VWCE.DE": {
       "shares": 21.099589444023756,
       "avg_price": 165.8800048828125
     },
     "EQQQ.DE": {
-      "shares": 3.1565657781953824,
+      "shares": 1.2565657781953825,
       "avg_price": 633.5999755859375
     },
     "MSFT": {
-      "shares": 1.9206638294360487,
-      "avg_price": 390.489990234375
+      "shares": 3.0897075516712604,
+      "avg_price": 388.38627278847326
     },
     "AAPL": {
       "shares": 2.430094249212019,
@@ -35,6 +35,10 @@
     "NVDA": {
       "shares": 2.0530718895483915,
       "avg_price": 194.8300018310547
+    },
+    "GOOGL": {
+      "shares": 2.0861728463742315,
+      "avg_price": 359.51
     }
   },
   "transactions": [
@@ -109,6 +113,33 @@
       "price": 194.8300018310547,
       "shares": 2.0530718895483915,
       "reason": "PEG 0.61 y PER futuro 15.3 = extraordinariamente barato para +214% crecimiento beneficios. FY2026: ingresos $215.9B (+65%). Q1 FY27 (mayo 2026) nuevo beat. Target analistas $301 (+56%). Monopolio chips IA con moat enorme. Posición menor por beta 2.21 y exposición indirecta parcial via EQQQ."
+    },
+    {
+      "date": "2026-07-15",
+      "type": "sell",
+      "ticker": "EQQQ.DE",
+      "amount_eur": 1208.5899536132813,
+      "price": 636.0999755859375,
+      "shares": 1.9,
+      "reason": "Reducción de solapamiento: EQQQ.DE (Nasdaq 100) duplica exposición con satélites MSFT, AAPL, NVDA, META ya en cartera. Liberamos capital para rebalancear Core/Satélites hacia el objetivo 50/50, pasando de 64%/36% actual."
+    },
+    {
+      "date": "2026-07-15",
+      "type": "buy",
+      "ticker": "GOOGL",
+      "amount_eur": 750.0,
+      "price": 359.51,
+      "shares": 2.0861728463742315,
+      "reason": "Nuevo satélite: PER fwd 24,6, PEG 1,41, beneficios +82%, margen 38%. Q1 2026 excepcional (Cloud +63%, Search en máximos históricos con IA). Earnings Q2 el 22 jul como catalizador cercano. Ausente en cartera, añade diversificación en comunicación/cloud vs posiciones tecnológicas actuales."
+    },
+    {
+      "date": "2026-07-15",
+      "type": "buy",
+      "ticker": "MSFT",
+      "amount_eur": 450.0,
+      "price": 384.93,
+      "shares": 1.1690437222352115,
+      "reason": "Promedio a la baja: PER fwd 19,88 y PEG 1,19 muy atractivos. -31% desde máximos por capex IA, no por deterioro del negocio (Azure +40%, backlog $627B). Precio objetivo analistas ~$590 vs actual $384 (+53%). Earnings 29 jul. Se refuerza posición con convicción fundamental."
     }
   ],
   "snapshots": [
@@ -204,6 +235,59 @@
         }
       },
       "note": "Sesión 04-jul-2026: construcción cartera core-satellite 50/50. Núcleo ya existente (VWCE.DE 3500€ + EQQQ.DE 2000€). Satélites reforzados con 2 nuevas posiciones: META 600€ (PEG 0.84, PER fut 15.8, Q1 2026 beat +33% ingresos) y NVDA 400€ (PEG 0.61, PER fut 15.3, FY26 ingresos +65%). GOOGL descartada por ampliación capital dilutiva $85B. Cash 0€, cartera 100% desplegada."
+    },
+    {
+      "date": "2026-07-15",
+      "total_value": 10174.288212950749,
+      "cash": 8.589953613281295,
+      "positions": {
+        "VWCE.DE": {
+          "shares": 21.099589444023756,
+          "price": 166.10000610351562,
+          "value": 3504.6419354340196
+        },
+        "EQQQ.DE": {
+          "shares": 1.2565657781953825,
+          "price": 636.0999755859375,
+          "value": 799.3014608322073
+        },
+        "MSFT": {
+          "shares": 3.0897075516712604,
+          "price": 384.93,
+          "value": 1189.3211278648182
+        },
+        "AAPL": {
+          "shares": 2.430094249212019,
+          "price": 314.86,
+          "value": 765.1394753068963
+        },
+        "AGGH.L": {
+          "shares": 191.80972475304497,
+          "price": 5.2135,
+          "value": 999.9999999999999
+        },
+        "BTC-EUR": {
+          "shares": 0.018401701524832555,
+          "price": 56626.359375,
+          "value": 1042.0213636566539
+        },
+        "META": {
+          "shares": 1.0293360351170453,
+          "price": 661.0399780273438,
+          "value": 680.4322700365248
+        },
+        "NVDA": {
+          "shares": 2.0530718895483915,
+          "price": 211.8,
+          "value": 434.8406262063493
+        },
+        "GOOGL": {
+          "shares": 2.0861728463742315,
+          "price": 359.51,
+          "value": 750.0
+        }
+      },
+      "note": "Rebalanceo Core→Satélites: vendidas 1,9 uds EQQQ.DE (reducción solapamiento Nasdaq). Añadida GOOGL €750 (nuevo satélite: PEG 1,41, beneficios +82%, earnings Q2 el 22-jul) y reforzada MSFT €450 (promedio a la baja, PER fwd 19,88, PEG 1,19, -31% vs máximos por capex IA). Cartera pasa de 64/36 a 52/48 Core/Satélites. Valor total: €10.174. Rentabilidad acumulada: +1,74% en 12 días."
     }
   ]
 }
